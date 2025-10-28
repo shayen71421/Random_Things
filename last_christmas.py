@@ -73,6 +73,27 @@ def random_trunk_colors(tree):
     return {pos: random.choice(color_choices) for pos in positions}
 
 
+def render_lyrics_typed_by_word(lyric, num_words, chars_in_current_word, colors):
+    words = lyric.split()
+    result = ""
+    color_choices = ['G', 'R']
+
+    # Render fully visible words
+    for w in range(num_words):
+        for ch in words[w]:
+            color_code = colors.get(random.choice(color_choices), colors['G'])
+            result += color_code + ch + colors['END']
+        result += " "
+
+    # Render partially visible next word (if any)
+    if num_words < len(words):
+        partial_word = words[num_words][:chars_in_current_word]
+        for ch in partial_word:
+            color_code = colors.get(random.choice(color_choices), colors['G'])
+            result += color_code + ch + colors['END']
+
+    return result
+
 def main():
     lyrics = [
         "A face on a lover",
@@ -98,7 +119,6 @@ def main():
 
     max_rows = len(tree)
     lyric_lines = lyrics[:max_rows]
-    lyric_column_width = max((len(s) for s in lyric_lines), default=0) + 2
 
     frame_delay = 0.15
     lyric_delay = 2.3
@@ -107,6 +127,15 @@ def main():
 
     tree_indent = 2
 
+    colors = {
+        'R': '\033[31m',  # Red
+        'G': '\033[32m',  # Green
+        'END': '\033[0m'  # Reset
+    }
+
+    # Calculate max lyric line length for padding
+    lyric_column_width = max(len(s) for s in lyric_lines) + 2
+
     try:
         for frame in range(total_frames):
             star_colors = random_star_colors(tree)
@@ -114,27 +143,36 @@ def main():
             clear_console()
             tree_lines = render_tree(tree, star_colors, trunk_colors)
 
-            # Calculate how many lines to show fully
             full_visible_lines = min(len(lyric_lines), frame // frames_per_line)
-            # Characters to show in typing for the current line
-            chars_in_current_line = (frame % frames_per_line) * (lyric_column_width // frames_per_line)
 
             for idx, tline in enumerate(tree_lines):
                 if idx < full_visible_lines:
-                    # Show full lyric line
-                    lline = lyric_lines[idx]
+                    # show full line in twinkle colors word-by-word (all words fully)
+                    lline = render_lyrics_typed_by_word(lyric_lines[idx], len(lyric_lines[idx].split()), 0, colors)
                 elif idx == full_visible_lines and full_visible_lines < len(lyric_lines):
-                    # Show lyric partially for typing effect
-                    lline = lyric_lines[full_visible_lines][:chars_in_current_line]
+                    # calculate which word and partial chars for current typing
+                    words_in_line = lyric_lines[full_visible_lines].split()
+                    total_words = len(words_in_line)
+                    # progress through words over frames_per_line frames
+                    word_progress = frames_per_line * 2  # speed adjustment, you can tweak this
+                    # map frame progress to word count + partial char count
+                    progress_ratio = (frame % frames_per_line) / frames_per_line
+
+                    num_words = int(progress_ratio * total_words)
+                    chars_in_word = int((progress_ratio * total_words - num_words) * len(words_in_line[min(num_words, total_words - 1)])) if num_words < total_words else 0
+
+                    lline = render_lyrics_typed_by_word(lyric_lines[full_visible_lines], num_words, chars_in_word, colors)
                 else:
                     lline = ""
 
-                print((' ' * tree_indent) + tline + "   " + lline.ljust(lyric_column_width))
+                print((' ' * tree_indent) + tline + "   " + lline.ljust(lyric_column_width + 10))
 
             time.sleep(frame_delay)
     except KeyboardInterrupt:
         pass
 
+   
+   
 
 if __name__ == "__main__":
     main()
